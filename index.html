@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Logo Tool — Background Remover & Vectorizer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --border: #2a2a2a;
+      --border-hover: #4a4a4a;
+      --text: #e8e8e8;
+      --text-muted: #888;
+      --accent: #6c63ff;
+      --accent-hover: #5a52d5;
+      --accent2: #ff6b6b;
+      --accent2-hover: #e55a5a;
+      --error: #ef5350;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .subtitle { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 2rem; }
+    .app { width: 100%; max-width: 960px; }
+
+    /* Drop Zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background: var(--surface);
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(108, 99, 255, 0.05);
+    }
+    .drop-zone.disabled { pointer-events: none; opacity: 0.5; }
+    .drop-zone-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.6; }
+    .drop-zone-text { font-size: 1.1rem; margin-bottom: 0.5rem; }
+    .drop-zone-hint { color: var(--text-muted); font-size: 0.85rem; }
+    input[type="file"] { display: none; }
+
+    /* Action buttons row */
+    .actions {
+      display: none;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .actions.visible { display: grid; grid-template-columns: 1fr 1fr; }
+
+    .action-btn {
+      padding: 1.25rem 1.5rem;
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      text-align: left;
+    }
+    .action-btn:hover { border-color: var(--accent); }
+    .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .action-btn.processing { border-color: var(--accent); opacity: 0.7; }
+
+    .action-btn-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .action-btn-desc { font-size: 0.8rem; color: var(--text-muted); }
+
+    /* Progress */
+    .progress-section { display: none; margin-top: 1rem; }
+    .progress-section.visible { display: block; }
+    .progress-label { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+    .progress-bar-track {
+      width: 100%;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    /* Error */
+    .error-msg {
+      display: none;
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: rgba(239, 83, 80, 0.1);
+      border: 1px solid var(--error);
+      border-radius: 8px;
+      color: var(--error);
+      font-size: 0.9rem;
+    }
+    .error-msg.visible { display: block; }
+
+    /* Result panels */
+    .result-panel {
+      display: none;
+      margin-top: 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .result-panel.visible { display: block; }
+
+    .result-panel-header {
+      padding: 0.75rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .result-panel-body {
+      padding: 1rem;
+      display: flex;
+      gap: 1.5rem;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    .result-col {
+      flex: 1;
+      text-align: center;
+    }
+    .result-col-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+    .result-col-img {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 200px;
+    }
+
+    .checker {
+      background-image:
+        linear-gradient(45deg, #222 25%, transparent 25%),
+        linear-gradient(-45deg, #222 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #222 75%),
+        linear-gradient(-45deg, transparent 75%, #222 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+      border-radius: 8px;
+      padding: 0.5rem;
+    }
+
+    .result-col-img img, .result-col-img svg, .result-col-img object {
+      max-width: 100%;
+      max-height: 50vh;
+      object-fit: contain;
+    }
+
+    .controls-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 1rem;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .checkbox-label input[type="checkbox"] {
+      width: 16px; height: 16px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .spacer { flex: 1; }
+
+    .btn {
+      padding: 0.5rem 1.2rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-accent2 { background: var(--accent2); color: #fff; }
+    .btn-accent2:hover:not(:disabled) { background: var(--accent2-hover); }
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn-secondary:hover:not(:disabled) { background: var(--border-hover); }
+
+    .btn-reset-main {
+      display: none;
+      margin-top: 1.5rem;
+    }
+    .btn-reset-main.visible { display: inline-block; }
+
+    /* SVG color count control */
+    .svg-control {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+    }
+    .svg-control label { color: var(--text-muted); }
+    .svg-control select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.3rem 0.5rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    footer { margin-top: 3rem; color: var(--text-muted); font-size: 0.8rem; }
+
+    @media (max-width: 640px) {
+      .actions.visible { grid-template-columns: 1fr; }
+      .result-panel-body { flex-direction: column; }
+      .drop-zone { padding: 2rem 1rem; }
+      h1 { font-size: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>Logo Tool</h1>
+    <p class="subtitle">Remove backgrounds & convert to vector — runs entirely in your browser</p>
+
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-zone-icon">&#128444;</div>
+      <div class="drop-zone-text">Drop an image here or click to upload</div>
+      <div class="drop-zone-hint">PNG, JPG, WebP &bull; or paste with Ctrl+V</div>
+    </div>
+    <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp">
+
+    <div class="actions" id="actions">
+      <button class="action-btn" id="btnRemoveBg">
+        <div class="action-btn-title">Remove Background</div>
+        <div class="action-btn-desc">AI-powered background removal — download transparent PNG</div>
+      </button>
+      <button class="action-btn" id="btnVectorize">
+        <div class="action-btn-title">Convert to SVG</div>
+        <div class="action-btn-desc">Vectorize your image for print — download scalable SVG</div>
+      </button>
+    </div>
+
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label" id="progressLabel">Processing...</div>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <div class="error-msg" id="errorMsg"></div>
+
+    <!-- Background Removal Result -->
+    <div class="result-panel" id="bgResult">
+      <div class="result-panel-header">Background Removal</div>
+      <div class="result-panel-body">
+        <div class="result-col">
+          <div class="result-col-label">Original</div>
+          <div class="result-col-img"><img id="bgOrigImg" alt="Original"></div>
+        </div>
+        <div class="result-col">
+          <div class="result-col-label">Result</div>
+          <div class="result-col-img checker"><img id="bgResultImg" alt="Result"></div>
+        </div>
+      </div>
+      <div class="controls-row">
+        <label class="checkbox-label">
+          <input type="checkbox" id="circleCrop"> Circle crop
+        </label>
+        <div class="spacer"></div>
+        <button class="btn btn-primary" id="btnDownloadPng">Download PNG</button>
+      </div>
+    </div>
+
+    <!-- Vectorize Result -->
+    <div class="result-panel" id="svgResult">
+      <div class="result-panel-header">Vectorized SVG</div>
+      <div class="result-panel-body">
+        <div class="result-col">
+          <div class="result-col-label">Original</div>
+          <div class="result-col-img"><img id="svgOrigImg" alt="Original"></div>
+        </div>
+        <div class="result-col">
+          <div class="result-col-label">SVG Result</div>
+          <div class="result-col-img checker" id="svgPreviewContainer"></div>
+        </div>
+      </div>
+      <div class="controls-row">
+        <div class="svg-control">
+          <label for="colorCount">Colors:</label>
+          <select id="colorCount">
+            <option value="8">8</option>
+            <option value="16" selected>16</option>
+            <option value="32">32</option>
+            <option value="64">64</option>
+            <option value="128">128</option>
+          </select>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn btn-accent2" id="btnDownloadSvg">Download SVG</button>
+      </div>
+    </div>
+
+    <button class="btn btn-secondary btn-reset-main" id="btnReset">Process Another Image</button>
+  </div>
+
+  <footer>Images are processed locally in your browser — nothing is uploaded to any server.</footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "@imgly/background-removal": "https://esm.sh/@imgly/background-removal@1.5.5"
+    }
+  }
+  </script>
+  <script type="module">
+    import { removeBackground } from "@imgly/background-removal";
+
+    // --- DOM ---
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const actions = document.getElementById('actions');
+    const btnRemoveBg = document.getElementById('btnRemoveBg');
+    const btnVectorize = document.getElementById('btnVectorize');
+    const progressSection = document.getElementById('progressSection');
+    const progressLabel = document.getElementById('progressLabel');
+    const progressFill = document.getElementById('progressFill');
+    const errorMsg = document.getElementById('errorMsg');
+
+    // BG removal
+    const bgResult = document.getElementById('bgResult');
+    const bgOrigImg = document.getElementById('bgOrigImg');
+    const bgResultImg = document.getElementById('bgResultImg');
+    const circleCrop = document.getElementById('circleCrop');
+    const btnDownloadPng = document.getElementById('btnDownloadPng');
+
+    // Vectorize
+    const svgResult = document.getElementById('svgResult');
+    const svgOrigImg = document.getElementById('svgOrigImg');
+    const svgPreviewContainer = document.getElementById('svgPreviewContainer');
+    const colorCount = document.getElementById('colorCount');
+    const btnDownloadSvg = document.getElementById('btnDownloadSvg');
+
+    const btnReset = document.getElementById('btnReset');
+
+    let currentFileName = 'image';
+    let uploadedFile = null;
+    let uploadedUrl = null;
+    let removedBgBlob = null;
+    let finalPngBlob = null;
+    let currentSvgString = null;
+
+    // --- Upload ---
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+    document.addEventListener('paste', (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) handleFile(file);
+          break;
+        }
+      }
+    });
+
+    function handleFile(file) {
+      if (!file.type.startsWith('image/')) {
+        showError('Please upload an image file (PNG, JPG, or WebP).');
+        return;
+      }
+      hideError();
+      currentFileName = file.name || 'image.png';
+      uploadedFile = file;
+      if (uploadedUrl) URL.revokeObjectURL(uploadedUrl);
+      uploadedUrl = URL.createObjectURL(file);
+
+      // Reset previous results
+      bgResult.classList.remove('visible');
+      svgResult.classList.remove('visible');
+      btnReset.classList.remove('visible');
+      progressSection.classList.remove('visible');
+      removedBgBlob = null;
+      finalPngBlob = null;
+      currentSvgString = null;
+      circleCrop.checked = false;
+
+      // Show action buttons
+      dropZone.classList.add('disabled');
+      actions.classList.add('visible');
+      btnRemoveBg.disabled = false;
+      btnVectorize.disabled = false;
+    }
+
+    // --- Action: Remove Background ---
+    btnRemoveBg.addEventListener('click', async () => {
+      btnRemoveBg.disabled = true;
+      btnRemoveBg.classList.add('processing');
+      progressSection.classList.add('visible');
+
+      bgOrigImg.src = uploadedUrl;
+
+      try {
+        updateProgress('Loading AI model & processing...', 10);
+
+        const blob = await removeBackground(uploadedFile, {
+          publicPath: 'https://staticimgly.com/@imgly/background-removal-data/1.5.5/dist/',
+          progress: (key, current, total) => {
+            if (key === 'fetch:model') {
+              const pct = total > 0 ? Math.round((current / total) * 60) : 10;
+              updateProgress('Downloading AI model...', pct);
+            } else if (key === 'compute:inference') {
+              const pct = total > 0 ? 60 + Math.round((current / total) * 35) : 70;
+              updateProgress('Removing background...', pct);
+            }
+          }
+        });
+
+        updateProgress('Filling interior holes...', 95);
+        const fixed = await fillInteriorHoles(uploadedFile, blob);
+        updateProgress('Done!', 100);
+
+        removedBgBlob = fixed;
+        finalPngBlob = fixed;
+        bgResultImg.src = URL.createObjectURL(fixed);
+
+        bgResult.classList.add('visible');
+        btnReset.classList.add('visible');
+        progressSection.classList.remove('visible');
+      } catch (err) {
+        console.error(err);
+        showError(`Background removal failed: ${err.message || 'Unknown error'}.`);
+        progressSection.classList.remove('visible');
+      }
+      btnRemoveBg.classList.remove('processing');
+      btnRemoveBg.disabled = false;
+    });
+
+    // --- Circle crop toggle ---
+    circleCrop.addEventListener('change', async () => {
+      if (!removedBgBlob) return;
+      btnDownloadPng.disabled = true;
+      if (circleCrop.checked) {
+        finalPngBlob = await applyCircleCrop(removedBgBlob);
+      } else {
+        finalPngBlob = removedBgBlob;
+      }
+      bgResultImg.src = URL.createObjectURL(finalPngBlob);
+      btnDownloadPng.disabled = false;
+    });
+
+    // --- Download PNG ---
+    btnDownloadPng.addEventListener('click', () => {
+      if (!finalPngBlob) return;
+      const a = document.createElement('a');
+      a.download = baseName() + '-no-bg.png';
+      a.href = URL.createObjectURL(finalPngBlob);
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    // --- Action: Vectorize ---
+    btnVectorize.addEventListener('click', () => {
+      btnVectorize.disabled = true;
+      btnVectorize.classList.add('processing');
+      progressSection.classList.add('visible');
+      updateProgress('Vectorizing...', 30);
+
+      svgOrigImg.src = uploadedUrl;
+      runVectorize(parseInt(colorCount.value));
+    });
+
+    // Re-vectorize when color count changes
+    colorCount.addEventListener('change', () => {
+      if (!uploadedFile) return;
+      progressSection.classList.add('visible');
+      updateProgress('Re-vectorizing...', 30);
+      runVectorize(parseInt(colorCount.value));
+    });
+
+    function runVectorize(numColors) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        // Draw to canvas for ImageTracer
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        try {
+          const options = {
+            numberofcolors: numColors,
+            colorsampling: 2,
+            pathomit: 8,
+            blurradius: 0,
+            blurdelta: 20,
+            strokewidth: 0,
+            linefilter: false,
+            scale: 1,
+            roundcoords: 2,
+            desc: false,
+            viewbox: true,
+            colorquantcycles: 3,
+            mincolorratio: 0
+          };
+
+          const svgStr = ImageTracer.imagedataToSVG(imageData, options);
+          currentSvgString = svgStr;
+
+          updateProgress('Done!', 100);
+
+          svgPreviewContainer.innerHTML = svgStr;
+          // Make SVG responsive in preview
+          const svgEl = svgPreviewContainer.querySelector('svg');
+          if (svgEl) {
+            svgEl.style.maxWidth = '100%';
+            svgEl.style.maxHeight = '50vh';
+            svgEl.style.width = 'auto';
+            svgEl.style.height = 'auto';
+          }
+
+          svgResult.classList.add('visible');
+          btnReset.classList.add('visible');
+          progressSection.classList.remove('visible');
+        } catch (err) {
+          console.error(err);
+          showError(`Vectorization failed: ${err.message || 'Unknown error'}.`);
+          progressSection.classList.remove('visible');
+        }
+        btnVectorize.classList.remove('processing');
+        btnVectorize.disabled = false;
+      };
+      img.onerror = () => {
+        showError('Failed to load image for vectorization.');
+        progressSection.classList.remove('visible');
+        btnVectorize.classList.remove('processing');
+        btnVectorize.disabled = false;
+      };
+      img.src = uploadedUrl;
+    }
+
+    // --- Download SVG ---
+    btnDownloadSvg.addEventListener('click', () => {
+      if (!currentSvgString) return;
+      const blob = new Blob([currentSvgString], { type: 'image/svg+xml' });
+      const a = document.createElement('a');
+      a.download = baseName() + '.svg';
+      a.href = URL.createObjectURL(blob);
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    // --- Reset ---
+    btnReset.addEventListener('click', () => {
+      actions.classList.remove('visible');
+      bgResult.classList.remove('visible');
+      svgResult.classList.remove('visible');
+      btnReset.classList.remove('visible');
+      progressSection.classList.remove('visible');
+      errorMsg.classList.remove('visible');
+      dropZone.classList.remove('disabled');
+      circleCrop.checked = false;
+      fileInput.value = '';
+      uploadedFile = null;
+      removedBgBlob = null;
+      finalPngBlob = null;
+      currentSvgString = null;
+      svgPreviewContainer.innerHTML = '';
+      if (uploadedUrl) { URL.revokeObjectURL(uploadedUrl); uploadedUrl = null; }
+    });
+
+    // --- Helpers ---
+    function baseName() {
+      return currentFileName.replace(/\.[^.]+$/, '');
+    }
+
+    async function fillInteriorHoles(originalFile, aiBlob) {
+      const [origBmp, aiBmp] = await Promise.all([
+        createImageBitmap(originalFile),
+        createImageBitmap(aiBlob)
+      ]);
+      const w = aiBmp.width;
+      const h = aiBmp.height;
+
+      const aiCanvas = new OffscreenCanvas(w, h);
+      const aiCtx = aiCanvas.getContext('2d');
+      aiCtx.drawImage(aiBmp, 0, 0);
+      const aiData = aiCtx.getImageData(0, 0, w, h);
+      const ai = aiData.data;
+
+      const visited = new Uint8Array(w * h);
+      const stack = [];
+      const ALPHA_THRESH = 128;
+
+      for (let x = 0; x < w; x++) {
+        if (ai[(x) * 4 + 3] < ALPHA_THRESH) stack.push(x);
+        const bot = (h - 1) * w + x;
+        if (ai[bot * 4 + 3] < ALPHA_THRESH) stack.push(bot);
+      }
+      for (let y = 1; y < h - 1; y++) {
+        const left = y * w;
+        if (ai[left * 4 + 3] < ALPHA_THRESH) stack.push(left);
+        const right = y * w + (w - 1);
+        if (ai[right * 4 + 3] < ALPHA_THRESH) stack.push(right);
+      }
+
+      while (stack.length > 0) {
+        const idx = stack.pop();
+        if (visited[idx]) continue;
+        if (ai[idx * 4 + 3] >= ALPHA_THRESH) continue;
+        visited[idx] = 1;
+        const x = idx % w;
+        const y = (idx - x) / w;
+        if (x > 0)     stack.push(idx - 1);
+        if (x < w - 1) stack.push(idx + 1);
+        if (y > 0)     stack.push(idx - w);
+        if (y < h - 1) stack.push(idx + w);
+      }
+
+      const outCanvas = new OffscreenCanvas(w, h);
+      const outCtx = outCanvas.getContext('2d');
+      outCtx.drawImage(origBmp, 0, 0, w, h);
+      const outData = outCtx.getImageData(0, 0, w, h);
+      const out = outData.data;
+
+      for (let i = 0; i < w * h; i++) {
+        if (visited[i]) {
+          out[i * 4 + 3] = 0;
+        }
+      }
+
+      outCtx.putImageData(outData, 0, 0);
+      return await outCanvas.convertToBlob({ type: 'image/png' });
+    }
+
+    async function applyCircleCrop(blob) {
+      const img = await createImageBitmap(blob);
+      const size = Math.min(img.width, img.height);
+      const canvas = new OffscreenCanvas(size, size);
+      const ctx = canvas.getContext('2d');
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      const offsetX = (img.width - size) / 2;
+      const offsetY = (img.height - size) / 2;
+      ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, size, size);
+      return await canvas.convertToBlob({ type: 'image/png' });
+    }
+
+    function updateProgress(label, percent) {
+      progressLabel.textContent = label;
+      progressFill.style.width = `${percent}%`;
+    }
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.classList.add('visible');
+    }
+
+    function hideError() {
+      errorMsg.classList.remove('visible');
+    }
+  </script>
+</body>
+</html>
