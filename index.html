@@ -650,17 +650,18 @@
       const visited = new Uint8Array(w * h);
       const stack = [];
       const ALPHA_THRESH = 128;
+      const HALO_THRESH = 220;
 
       for (let x = 0; x < w; x++) {
-        if (ai[(x) * 4 + 3] < ALPHA_THRESH) stack.push(x);
+        if (ai[(x) * 4 + 3] < HALO_THRESH) stack.push(x);
         const bot = (h - 1) * w + x;
-        if (ai[bot * 4 + 3] < ALPHA_THRESH) stack.push(bot);
+        if (ai[bot * 4 + 3] < HALO_THRESH) stack.push(bot);
       }
       for (let y = 1; y < h - 1; y++) {
         const left = y * w;
-        if (ai[left * 4 + 3] < ALPHA_THRESH) stack.push(left);
+        if (ai[left * 4 + 3] < HALO_THRESH) stack.push(left);
         const right = y * w + (w - 1);
-        if (ai[right * 4 + 3] < ALPHA_THRESH) stack.push(right);
+        if (ai[right * 4 + 3] < HALO_THRESH) stack.push(right);
       }
 
       while (stack.length > 0) {
@@ -674,6 +675,29 @@
         if (x < w - 1) stack.push(idx + 1);
         if (y > 0)     stack.push(idx - w);
         if (y < h - 1) stack.push(idx + w);
+      }
+
+      const halo = [];
+      for (let i = 0; i < w * h; i++) {
+        if (!visited[i]) continue;
+        const x = i % w;
+        const y = (i - x) / w;
+        if (x > 0)     halo.push(i - 1);
+        if (x < w - 1) halo.push(i + 1);
+        if (y > 0)     halo.push(i - w);
+        if (y < h - 1) halo.push(i + w);
+      }
+      while (halo.length > 0) {
+        const idx = halo.pop();
+        if (visited[idx]) continue;
+        if (ai[idx * 4 + 3] >= HALO_THRESH) continue;
+        visited[idx] = 1;
+        const x = idx % w;
+        const y = (idx - x) / w;
+        if (x > 0)     halo.push(idx - 1);
+        if (x < w - 1) halo.push(idx + 1);
+        if (y > 0)     halo.push(idx - w);
+        if (y < h - 1) halo.push(idx + w);
       }
 
       const origCanvas = new OffscreenCanvas(w, h);
