@@ -676,14 +676,27 @@
         if (y < h - 1) stack.push(idx + w);
       }
 
+      const origCanvas = new OffscreenCanvas(w, h);
+      const origCtx = origCanvas.getContext('2d');
+      origCtx.drawImage(origBmp, 0, 0, w, h);
+      const orig = origCtx.getImageData(0, 0, w, h).data;
+
       const outCanvas = new OffscreenCanvas(w, h);
       const outCtx = outCanvas.getContext('2d');
-      outCtx.drawImage(origBmp, 0, 0, w, h);
+      outCtx.drawImage(aiBmp, 0, 0);
       const outData = outCtx.getImageData(0, 0, w, h);
       const out = outData.data;
 
       for (let i = 0; i < w * h; i++) {
-        out[i * 4 + 3] = visited[i] ? 0 : ai[i * 4 + 3];
+        const j = i * 4;
+        if (visited[i]) {
+          out[j + 3] = 0;
+        } else if (ai[j + 3] < ALPHA_THRESH) {
+          out[j]     = orig[j];
+          out[j + 1] = orig[j + 1];
+          out[j + 2] = orig[j + 2];
+          out[j + 3] = 255;
+        }
       }
 
       outCtx.putImageData(outData, 0, 0);
