@@ -683,9 +683,7 @@
       const out = outData.data;
 
       for (let i = 0; i < w * h; i++) {
-        if (visited[i]) {
-          out[i * 4 + 3] = 0;
-        }
+        out[i * 4 + 3] = visited[i] ? 0 : ai[i * 4 + 3];
       }
 
       outCtx.putImageData(outData, 0, 0);
